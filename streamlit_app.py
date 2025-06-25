@@ -23,10 +23,9 @@ if uploaded_file:
     else:
         # Calculate net amounts
         df["Net"] = df["Debit"].fillna(0) - df["Credit"].fillna(0)
-
         # Auto classify accounts
-       df["Category"] = df["Account Name"].apply(
-    lambda x: "Balance Sheet" if pd.notnull(x) and any(k in x.lower() for k in ["receivable", "payable", "cash", "asset", "liability", "equity"])
+      df["Category"] = df["Account Name"].apply(
+    lambda x: "Balance Sheet" if isinstance(x, str) and any(k in x.lower() for k in ["receivable", "payable", "cash", "asset", "liability", "equity"])
     else "P&L"
         # Build simple Balance Sheet and P&L
         balance_sheet = df[df["Category"] == "Balance Sheet"].copy()
