@@ -25,11 +25,9 @@ if uploaded_file:
         df["Net"] = df["Debit"].fillna(0) - df["Credit"].fillna(0)
 
         # Auto classify accounts
-        df["Category"] = df["Account Name"].apply(lambda x: (
-            "Balance Sheet" if any(k in x.lower() for k in ["receivable", "payable", "cash", "asset", "liability", "equity"])
-            else "P&L"
-        ))
-
+       df["Category"] = df["Account Name"].apply(
+    lambda x: "Balance Sheet" if pd.notnull(x) and any(k in x.lower() for k in ["receivable", "payable", "cash", "asset", "liability", "equity"])
+    else "P&L"
         # Build simple Balance Sheet and P&L
         balance_sheet = df[df["Category"] == "Balance Sheet"].copy()
         profit_loss = df[df["Category"] == "P&L"].copy()
