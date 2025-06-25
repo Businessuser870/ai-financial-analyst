@@ -51,7 +51,7 @@ Be friendly and clear. Use simple language.
         with st.spinner("Analyzing your financials..."):
             try:
                 response = openai.ChatCompletion.create(
-                    model="gpt-4",
+                    model="gpt-3.5-turbo",
                     messages=[
                         {"role": "system", "content": "You are a financial analyst for small businesses."},
                         {"role": "user", "content": prompt}
