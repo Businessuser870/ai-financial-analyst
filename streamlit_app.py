@@ -62,7 +62,7 @@ if uploaded_file is not None:
         st.plotly_chart(fig_tb, use_container_width=True)
 
         pnl_summary_data = df.copy()
-        revenue_filter = pnl_summary_data["Account Name"].fillna("").str.lower().str.contains("revenue|sales|turnover"
+        revenue_filter = pnl_summary_data["Account Name"].fillna("").str.lower().str.contains("revenue|sales|turnover")
         pnl_summary_data["Revenue"] = pnl_summary_data["Net"].where(revenue_filter, 0)
         pnl_summary_data["Expenses"] = pnl_summary_data["Net"].where(~revenue_filter & (pnl_summary_data["Category"] == "P&L"), 0)
         summary_monthly = pnl_summary_data.groupby("Month").agg({"Revenue": "sum", "Expenses": "sum"}).reset_index()
