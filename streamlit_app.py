@@ -64,7 +64,8 @@ if uploaded_file is not None:
         pnl_summary_data = df.copy()
         revenue_filter = pnl_summary_data["Account Name"].fillna("").str.lower().str.contains("revenue|sales|turnover")
         pnl_summary_data["Revenue"] = pnl_summary_data["Net"].where(revenue_filter, 0) * -1
-        pnl_summary_data["Expenses"] = pnl_summary_data["Net"].where(~revenue_filter & (pnl_summary_data["Category"] == "P&L"), 0)
+        pnl_summary_data["Expenses"] = pnl_summary_data["Net"].where(~revenue_filter & (pnl_summary_data["Category"] == "P&L"), 0).apply(lambda x: x if x > 0 else -x)
+
         summary_monthly = pnl_summary_data.groupby("Month").agg({"Revenue": "sum", "Expenses": "sum"}).reset_index()
         summary_monthly["Profit"] = summary_monthly["Revenue"] - summary_monthly["Expenses"]
 
