@@ -63,11 +63,15 @@ if uploaded_file is not None:
 
         # ✅ FIX: Use df_filtered to ensure correct filtering for summaries
         pnl_summary_data = df_filtered.copy()
-        revenue_filter = pnl_summary_data["Account Name"].fillna("").str.lower().str.contains("revenue|sales|turnover")
-        pnl_summary_data["Revenue"] = pnl_summary_data["Net"].where(revenue_filter, 0) * -1
-        pnl_summary_data["Expenses"] = pnl_summary_data["Net"].where(~revenue_filter & (pnl_summary_data["Category"] == "P&L"), 0).abs()
 
-        summary_monthly = pnl_summary_data.groupby("Month").agg({"Revenue": "sum", "Expenses": "sum"}).reset_index()
+        # Revenue and Expense tagging for accurate classification
+        pnl_summary_data["IsRevenue"] = pnl_summary_data["Account Name"].fillna("").str.lower().str.contains("revenue|sales|turnover")
+        pnl_summary_data["Revenue"] = pnl_summary_data.apply(lambda row: -row["Net"] if row["IsRevenue"] else 0, axis=1)
+        pnl_summary_data["Expenses"] = pnl_summary_data.apply(
+            lambda row: abs(row["Net"]) if (not row["IsRevenue"] and row["Category"] == "P&L") else 0, axis=1
+        )
+
+        summary_monthly = pnl_summary_data.groupby("Month")[["Revenue", "Expenses"]].sum().reset_index()
         summary_monthly["Profit"] = summary_monthly["Revenue"] - summary_monthly["Expenses"]
 
         summary_monthly["Revenue MoM %"] = summary_monthly["Revenue"].pct_change().fillna(0) * 100
@@ -95,8 +99,8 @@ if uploaded_file is not None:
         st.plotly_chart(fig_bs, use_container_width=True)
 
         st.subheader("📉 Profit & Loss")
-        revenue = df_filtered[revenue_filter].groupby("Account Name")["Net"].sum().reset_index(name="Revenue")
-        expenses = df_filtered[(df_filtered["Category"] == "P&L") & ~revenue_filter].groupby("Account Name")["Net"].sum().reset_index(name="Expense")
+        revenue = df_filtered[pnl_summary_data["IsRevenue"]].groupby("Account Name")["Net"].sum().reset_index(name="Revenue")
+        expenses = df_filtered[(df_filtered["Category"] == "P&L") & ~pnl_summary_data["IsRevenue"]].groupby("Account Name")["Net"].sum().reset_index(name="Expense")
 
         fig_exp = px.bar(expenses, x="Account Name", y="Expense", title="Expense Breakdown")
         st.plotly_chart(fig_exp, use_container_width=True)
