@@ -61,7 +61,8 @@ if uploaded_file is not None:
         fig_tb = px.bar(tb_chart, x="Month", y=["Debit", "Credit"], barmode="group", title="Debits vs Credits by Month")
         st.plotly_chart(fig_tb, use_container_width=True)
 
-        pnl_summary_data = df.copy()
+        # ✅ FIX: Use df_filtered to ensure correct filtering for summaries
+        pnl_summary_data = df_filtered.copy()
         revenue_filter = pnl_summary_data["Account Name"].fillna("").str.lower().str.contains("revenue|sales|turnover")
         pnl_summary_data["Revenue"] = pnl_summary_data["Net"].where(revenue_filter, 0) * -1
         pnl_summary_data["Expenses"] = pnl_summary_data["Net"].where(~revenue_filter & (pnl_summary_data["Category"] == "P&L"), 0).abs()
