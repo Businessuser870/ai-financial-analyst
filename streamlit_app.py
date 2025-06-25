@@ -1,63 +1,68 @@
 import streamlit as st
 import pandas as pd
 import openai
-import os
 
-# Set OpenAI API Key from Streamlit secrets
+# Set your OpenAI API key
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# App title and instructions
-st.set_page_config(page_title="AI Financial Analyst", layout="centered")
-st.title("AI Financial Analyst")
-st.write("Upload your P&L CSV file and get a summary of your financial performance.")
+st.set_page_config(page_title="AI Financial Analyst", layout="wide")
+st.title("📊 AI Trial Balance Analyzer")
+st.write("Upload your monthly Trial Balance to generate financial statements and analysis.")
 
-# Upload CSV
-uploaded_file = st.file_uploader("Upload your Profit & Loss CSV", type="csv")
+uploaded_file = st.file_uploader("Upload your Trial Balance CSV", type="csv")
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
-    st.subheader("📊 Preview of Uploaded Data")
+
+    st.subheader("📄 Raw Trial Balance")
     st.dataframe(df)
 
-    # Required columns check
-    required_columns = ["Month", "Revenue", "COGS", "Operating Expenses", "Net Profit"]
+    required_columns = ["Account Name", "Debit", "Credit"]
     if not all(col in df.columns for col in required_columns):
         st.error(f"Your CSV must contain these columns: {', '.join(required_columns)}")
     else:
-        # Convert CSV data to string for GPT
-        csv_string = df.to_csv(index=False)
+        # Calculate net amounts
+        df["Net"] = df["Debit"].fillna(0) - df["Credit"].fillna(0)
 
-        # Build GPT prompt
-        prompt = f"""
-You are a helpful financial analyst. Review the following SME profit & loss data:
+        # Auto classify accounts
+        df["Category"] = df["Account Name"].apply(lambda x: (
+            "Balance Sheet" if any(k in x.lower() for k in ["receivable", "payable", "cash", "asset", "liability", "equity"])
+            else "P&L"
+        ))
 
-{csv_string}
+        # Build simple Balance Sheet and P&L
+        balance_sheet = df[df["Category"] == "Balance Sheet"].copy()
+        profit_loss = df[df["Category"] == "P&L"].copy()
 
-1. Summarize key trends in plain English.
-2. Calculate and display:
-   - Total revenue and month-over-month change
-   - Gross margin %
-   - Net profit %
-   - Operating expenses as % of revenue
-   - Monthly burn rate (if applicable)
-   - Estimated cash runway (assume £25,000 in bank)
-3. Flag any risks or anomalies.
-4. Make 1–2 recommendations for improvement.
+        st.subheader("📈 Balance Sheet")
+        st.dataframe(balance_sheet[["Account Name", "Net"]].groupby("Account Name").sum())
 
-Be friendly and clear. Use simple language.
+        st.subheader("📉 Profit & Loss")
+        st.dataframe(profit_loss[["Account Name", "Net"]].groupby("Account Name").sum())
+
+        # Summary for GPT
+        csv_summary = df.to_csv(index=False)
+        prompt = f"""You are a smart finance analyst. Here's the trial balance data:
+
+{csv_summary}
+
+Summarize:
+- Total Revenue and Expenses
+- Net Profit
+- Any unusual items
+- Suggest 1–2 ways to improve
 """
 
-        st.subheader("📈 AI Analysis")
-        with st.spinner("Analyzing your financials..."):
+        with st.spinner("Analyzing with AI..."):
             try:
                 response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
+                    model="gpt-4",
                     messages=[
-                        {"role": "system", "content": "You are a financial analyst for small businesses."},
+                        {"role": "system", "content": "You are a finance analyst for SMEs."},
                         {"role": "user", "content": prompt}
                     ]
                 )
-                summary = response.choices[0].message.content
-                st.markdown(summary)
+                st.subheader("💡 AI Summary")
+                st.markdown(response.choices[0].message.content)
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"AI Error: {e}")
