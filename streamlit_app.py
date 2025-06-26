@@ -55,25 +55,19 @@ if uploaded_file is not None:
         total_net = df_filtered["Net"].sum()
         st.markdown(f"### 🔢 Trial Balance Check: {'✅ Balanced' if abs(total_net) < 0.01 else '❌ Not Balanced'} (Total = {total_net:.2f})")
 
-        # Stacked bar for monthly debits and credits
+        # Monthly trial balance
         st.subheader("📊 Monthly Trial Balance Totals")
-        tb_chart = df.groupby(["Month"]).agg({"Debit": "sum", "Credit": "sum"}).reset_index()
+        tb_chart = df.groupby("Month")[["Debit", "Credit"]].sum().reset_index()
         fig_tb = px.bar(tb_chart, x="Month", y=["Debit", "Credit"], barmode="group", title="Debits vs Credits by Month")
         st.plotly_chart(fig_tb, use_container_width=True)
 
-        # ✅ FIX: Use df_filtered to ensure correct filtering for summaries
-        pnl_summary_data = df_filtered.copy()
+        # Tag revenue and expenses
+        df_filtered["IsRevenue"] = df_filtered["Account Name"].str.lower().str.contains("revenue|sales|turnover")
+        df_filtered["Revenue"] = df_filtered.apply(lambda row: -row["Net"] if row["IsRevenue"] else 0, axis=1)
+        df_filtered["Expenses"] = df_filtered.apply(lambda row: abs(row["Net"]) if (not row["IsRevenue"] and row["Category"] == "P&L") else 0, axis=1)
 
-        # Revenue and Expense tagging for accurate classification
-        pnl_summary_data["IsRevenue"] = pnl_summary_data["Account Name"].fillna("").str.lower().str.contains("revenue|sales|turnover")
-        pnl_summary_data["Revenue"] = pnl_summary_data.apply(lambda row: -row["Net"] if row["IsRevenue"] else 0, axis=1)
-        pnl_summary_data["Expenses"] = pnl_summary_data.apply(
-            lambda row: abs(row["Net"]) if (not row["IsRevenue"] and row["Category"] == "P&L") else 0, axis=1
-        )
-
-        summary_monthly = pnl_summary_data.groupby("Month")[["Revenue", "Expenses"]].sum().reset_index()
+        summary_monthly = df_filtered.groupby("Month")[["Revenue", "Expenses"]].sum().reset_index()
         summary_monthly["Profit"] = summary_monthly["Revenue"] - summary_monthly["Expenses"]
-
         summary_monthly["Revenue MoM %"] = summary_monthly["Revenue"].pct_change().fillna(0) * 100
         summary_monthly["Profit MoM %"] = summary_monthly["Profit"].pct_change().fillna(0) * 100
 
@@ -86,34 +80,31 @@ if uploaded_file is not None:
         with col2:
             st.metric("📉 Profit", f"£{latest['Profit']:,.0f}", f"{latest['Profit MoM %']:.1f}%")
         with col3:
-            burn = abs(latest["Expenses"])
+            burn = latest["Expenses"]
             runway = 25000 / burn if burn else float('inf')
             st.metric("🏃‍♂️ Est. Runway", f"{runway:.1f} months")
 
-        balance_sheet = df_filtered[df_filtered["Category"] == "Balance Sheet"].copy()
-        profit_loss = df_filtered[df_filtered["Category"] == "P&L"].copy()
-
         st.subheader("📈 Balance Sheet")
-        bs_grouped = balance_sheet.groupby(["Account Name"])["Net"].sum().reset_index()
+        balance_sheet = df_filtered[df_filtered["Category"] == "Balance Sheet"]
+        bs_grouped = balance_sheet.groupby("Account Name")["Net"].sum().reset_index()
         fig_bs = px.bar(bs_grouped, x="Account Name", y="Net", title="Balance Sheet Composition")
         st.plotly_chart(fig_bs, use_container_width=True)
 
         st.subheader("📉 Profit & Loss")
-        revenue = df_filtered[pnl_summary_data["IsRevenue"]].groupby("Account Name")["Net"].sum().reset_index(name="Revenue")
-        expenses = df_filtered[(df_filtered["Category"] == "P&L") & ~pnl_summary_data["IsRevenue"]].groupby("Account Name")["Net"].sum().reset_index(name="Expense")
+        revenue_df = df_filtered[df_filtered["IsRevenue"]].groupby("Account Name")["Net"].sum().reset_index(name="Revenue")
+        expenses_df = df_filtered[(df_filtered["Category"] == "P&L") & ~df_filtered["IsRevenue"]].groupby("Account Name")["Net"].sum().reset_index(name="Expense")
 
-        fig_exp = px.bar(expenses, x="Account Name", y="Expense", title="Expense Breakdown")
+        fig_exp = px.bar(expenses_df, x="Account Name", y="Expense", title="Expense Breakdown")
         st.plotly_chart(fig_exp, use_container_width=True)
 
         st.subheader("🏷️ Tagged Summary")
-        tag_summary = df.groupby(["Month", "Tag"])["Net"].sum().reset_index()
+        tag_summary = df_filtered.groupby(["Month", "Tag"])["Net"].sum().reset_index()
         fig_tag = px.bar(tag_summary, x="Month", y="Net", color="Tag", barmode="stack", title="Net Activity by Tag")
         st.plotly_chart(fig_tag, use_container_width=True)
 
-        assumed_cash = 25000
         pnl_summary = summary_monthly.copy()
-        pnl_summary["Monthly Burn"] = pnl_summary["Expenses"].apply(lambda x: abs(x))
-        pnl_summary["Estimated Runway (months)"] = pnl_summary["Monthly Burn"].apply(lambda x: assumed_cash / x if x else float('inf'))
+        pnl_summary["Monthly Burn"] = pnl_summary["Expenses"].abs()
+        pnl_summary["Estimated Runway (months)"] = pnl_summary["Monthly Burn"].apply(lambda x: 25000 / x if x else float('inf'))
 
         st.subheader("🧾 P&L Table with Runway")
         st.dataframe(pnl_summary)
