@@ -27,7 +27,6 @@ if uploaded_file is not None:
             ) else "P&L"
         )
 
-        # Add Tag column based on common keywords
         def assign_tag(account):
             account = str(account).lower()
             if "salary" in account or "wages" in account:
@@ -47,7 +46,6 @@ if uploaded_file is not None:
 
         df["Tag"] = df["Account Name"].apply(assign_tag)
 
-        # Filter selector
         month_options = df["Month"].dropna().unique().tolist()
         selected_month = st.selectbox("📅 Select Month to Filter", ["All"] + month_options)
         df_filtered = df if selected_month == "All" else df[df["Month"] == selected_month]
@@ -55,14 +53,12 @@ if uploaded_file is not None:
         total_net = df_filtered["Net"].sum()
         st.markdown(f"### 🔢 Trial Balance Check: {'✅ Balanced' if abs(total_net) < 0.01 else '❌ Not Balanced'} (Total = {total_net:.2f})")
 
-        # Monthly trial balance
         st.subheader("📊 Monthly Trial Balance Totals")
         tb_chart = df.groupby("Month")[["Debit", "Credit"]].sum().reset_index()
         fig_tb = px.bar(tb_chart, x="Month", y=["Debit", "Credit"], barmode="group", title="Debits vs Credits by Month")
         st.plotly_chart(fig_tb, use_container_width=True)
 
-        # Tag revenue and expenses
-        df_filtered["IsRevenue"] = df_filtered["Account Name"].str.lower().str.contains("revenue|sales|turnover")
+        df_filtered["IsRevenue"] = df_filtered["Account Name"].fillna("").str.lower().str.contains("revenue|sales|turnover")
         df_filtered["Revenue"] = df_filtered.apply(lambda row: -row["Net"] if row["IsRevenue"] else 0, axis=1)
         df_filtered["Expenses"] = df_filtered.apply(lambda row: abs(row["Net"]) if (not row["IsRevenue"] and row["Category"] == "P&L") else 0, axis=1)
 
@@ -92,7 +88,7 @@ if uploaded_file is not None:
 
         st.subheader("📉 Profit & Loss")
         revenue_df = df_filtered[df_filtered["IsRevenue"]].groupby("Account Name")["Net"].sum().reset_index(name="Revenue")
-        expenses_df = df_filtered[(df_filtered["Category"] == "P&L") & ~df_filtered["IsRevenue"]].groupby("Account Name")["Net"].sum().reset_index(name="Expense")
+        expenses_df = df_filtered[(df_filtered["Category"] == "P&L") & (~df_filtered["IsRevenue"])].groupby("Account Name")["Net"].sum().reset_index(name="Expense")
 
         fig_exp = px.bar(expenses_df, x="Account Name", y="Expense", title="Expense Breakdown")
         st.plotly_chart(fig_exp, use_container_width=True)
