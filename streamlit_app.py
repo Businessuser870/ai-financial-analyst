@@ -58,14 +58,18 @@ if uploaded_file is not None:
         fig_tb = px.bar(tb_chart, x="Month", y=["Debit", "Credit"], barmode="group", title="Debits vs Credits by Month")
         st.plotly_chart(fig_tb, use_container_width=True)
 
-        df_filtered["IsRevenue"] = df_filtered["Account Name"].fillna("").str.lower().str.contains("revenue|sales|turnover")
-        df_filtered["Revenue"] = df_filtered.apply(lambda row: -row["Net"] if row["IsRevenue"] else 0, axis=1)
-        df_filtered["Expenses"] = df_filtered.apply(lambda row: abs(row["Net"]) if (not row["IsRevenue"] and row["Category"] == "P&L") else 0, axis=1)
+        # Use full df for accurate summaries
+        df["IsRevenue"] = df["Account Name"].fillna("").str.lower().str.contains("revenue|sales|turnover")
+        df["Revenue"] = df.apply(lambda row: -row["Net"] if row["IsRevenue"] else 0, axis=1)
+        df["Expenses"] = df.apply(lambda row: abs(row["Net"]) if (not row["IsRevenue"] and row["Category"] == "P&L") else 0, axis=1)
 
-        summary_monthly = df_filtered.groupby("Month")[["Revenue", "Expenses"]].sum().reset_index()
+        summary_monthly = df.groupby("Month")[["Revenue", "Expenses"]].sum().reset_index()
         summary_monthly["Profit"] = summary_monthly["Revenue"] - summary_monthly["Expenses"]
         summary_monthly["Revenue MoM %"] = summary_monthly["Revenue"].pct_change().fillna(0) * 100
         summary_monthly["Profit MoM %"] = summary_monthly["Profit"].pct_change().fillna(0) * 100
+
+        # Sync is_revenue in filtered for visualization
+        df_filtered["IsRevenue"] = df_filtered["Account Name"].fillna("").str.lower().str.contains("revenue|sales|turnover")
 
         latest = summary_monthly.iloc[-1]
         prev = summary_monthly.iloc[-2] if len(summary_monthly) > 1 else latest
